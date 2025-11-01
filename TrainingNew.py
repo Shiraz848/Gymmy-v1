@@ -8,7 +8,7 @@ import cv2
 import pygame
 
 import Email
-from Camera import Camera
+from Camera_zed import Camera
 from Gymmy import Gymmy
 from ScreenNew import Screen, FullScreenApp, Ball, Rubber_Band, Stick, NoTool, StartOfTraining, GoodbyePage, \
     EffortScale, EntrancePage, ExplanationPage, ExercisePage, Repeat_training_or_not, \

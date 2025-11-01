@@ -1,7 +1,7 @@
 import time
 import Settings as s
 from Audio import ContinuousAudio, AdditionalAudio
-from Camera import Camera
+from CameraFactory import create_camera, get_camera_info
 from Gymmy import Gymmy
 from TrainingNew import Training
 from ScreenNew import Screen, FullScreenApp, EntrancePage
@@ -86,7 +86,11 @@ if __name__ == '__main__':
     s.change_in_trend = [False]
 
     # Create all components
-    s.camera = Camera()
+    # Display camera info
+    cam_info = get_camera_info()
+    print(f"🎥 Camera System: {cam_info['name']} ({cam_info['backend']})")
+    
+    s.camera = create_camera()
     s.training = Training()
     s.robot = Gymmy()
 

@@ -1,3 +1,6 @@
+# Camera configuration - Change this to switch between cameras
+camera_type = "realsense"  # Options: "zed" or "realsense"
+
 def __init__():
 
     # classes pointers
@@ -7,6 +10,9 @@ def __init__():
     global screen
     global continuous_audio
     global zed_camera
+    global camera_type  # "zed" or "realsense"
+    global camera_backend  # The actual camera wrapper (PyZedWrapper or MP for RealSense)
+
 
     global volume
     # global participant_code

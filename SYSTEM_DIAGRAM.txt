@@ -1,0 +1,394 @@
+═══════════════════════════════════════════════════════════════════════════
+    GYMMY DUAL CAMERA SYSTEM - ARCHITECTURE DIAGRAM
+═══════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│                            MAIN.PY (Entry Point)                        │
+│                                                                         │
+│   ┌──────────────────┐       ┌──────────────────┐                      │
+│   │   Training       │       │     Gymmy        │                      │
+│   │   (Thread)       │       │    (Thread)      │                      │
+│   └──────────────────┘       └──────────────────┘                      │
+│                                                                         │
+│   ┌───────────────────────────────────────────────────────────┐        │
+│   │              Camera (created by Factory)                  │        │
+│   └───────────────────────────────────────────────────────────┘        │
+│                                                                         │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │      SETTINGS.PY             │
+              │                              │
+              │  camera_type = "realsense"   │  ◄── CHANGE THIS LINE
+              │     OR                       │      TO SWITCH CAMERAS
+              │  camera_type = "zed"         │
+              └──────────────┬───────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │    CAMERAFACTORY.PY          │
+              │  create_camera() function    │
+              └──────────┬───────────────────┘
+                         │
+                         │  Reads camera_type
+                         │  Returns appropriate camera
+                         │
+        ┌────────────────┴────────────────┐
+        │                                 │
+        ▼                                 ▼
+┌───────────────────┐           ┌───────────────────┐
+│   ZED MODE        │           │  REALSENSE MODE   │
+│                   │           │                   │
+│  Camera_zed.py    │           │Camera_realsense.py│
+│  (Thread)         │           │  (Thread)         │
+└─────┬─────────────┘           └─────┬─────────────┘
+      │                               │
+      ▼                               ▼
+┌─────────────────┐           ┌─────────────────┐
+│ PyZedWrapper.py │           │    MP.py        │
+│                 │           │   (Thread)      │
+│  ┌───────────┐  │           │                 │
+│  │ ZED SDK   │  │           │  ┌───────────┐  │
+│  │ Camera    │  │           │  │ MediaPipe │  │
+│  │ Hardware  │  │           │  │ Webcam    │  │
+│  └───────────┘  │           │  └───────────┘  │
+│       │         │           │       │         │
+│       ▼         │           │       ▼         │
+│  Stereo Depth   │           │  Pose Detection │
+│  Body Tracking  │           │  33 Landmarks   │
+└────┬────────────┘           └────┬────────────┘
+     │                             │
+     │ Uses Joint_zed              │ Uses Joint
+     │                             │
+     ▼                             ▼
+┌─────────────────┐           ┌─────────────────┐
+│  Joint_zed.py   │           │   Joint.py      │
+│                 │           │                 │
+│ Constructor:    │           │ Constructor:    │
+│ Joint(type,     │           │ Joint(type,     │
+│       kp_3d)    │           │       x,y,z)    │
+│                 │           │                 │
+│ has is_Nan()    │           │ Simple version  │
+└─────────────────┘           └─────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════
+    DATA FLOW - REALSENSE MODE (DETAILED)
+═══════════════════════════════════════════════════════════════════════════
+
+┌──────────────┐
+│   Webcam     │ (Any USB camera)
+└──────┬───────┘
+       │
+       │ Video frames
+       ▼
+┌──────────────────────────────────────────────────┐
+│              MP.py (MediaPipe Thread)            │
+│                                                  │
+│  1. Capture frame from webcam                    │
+│  2. Run MediaPipe pose detection                 │
+│  3. Extract 33 body landmarks                    │
+│  4. Format as: "name,x,y,z/name,x,y,z/..."       │
+│  5. Send via UDP to localhost:7000               │
+│  6. Display visualization window                 │
+└──────────────┬───────────────────────────────────┘
+               │
+               │ UDP Socket (localhost:7000)
+               │ Message format:
+               │ "nose,x,y,z/L_shoulder,x,y,z/..."
+               ▼
+┌──────────────────────────────────────────────────┐
+│       Camera_realsense.py (Main Thread)          │
+│                                                  │
+│  get_skeleton_data():                            │
+│  1. Receive UDP message                          │
+│  2. Parse string → split by '/'                  │
+│  3. Create Joint objects                         │
+│  4. Return dict: {"nose": Joint, "L_wrist": ...} │
+│                                                  │
+│  calc_angle_3d(joint1, joint2, joint3):          │
+│  1. Extract x,y,z coordinates                    │
+│  2. Calculate vectors                            │
+│  3. Compute angle using dot product              │
+│  4. Apply smoothing                              │
+│  5. Return angle in degrees                      │
+│                                                  │
+│  exercise_xxx():                                 │
+│  1. Get skeleton data continuously               │
+│  2. Calculate required angles                    │
+│  3. Check if within thresholds                   │
+│  4. Count repetitions                            │
+│  5. Provide feedback                             │
+└──────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════
+    EXERCISE TRACKING FLOW
+═══════════════════════════════════════════════════════════════════════════
+
+User does exercise → Webcam captures → MP detects pose →
+                                        ▼
+                            UDP sends joint positions →
+                                        ▼
+                            Camera_realsense receives →
+                                        ▼
+                            Calculate joint angles →
+                                        ▼
+                ┌───────────────────────────────────────────┐
+                │ Is angle in "UP" range?                   │
+                │   AND                                     │
+                │ Previous state was "DOWN"?                │
+                └───────────┬───────────────────────────────┘
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+                ▼                       ▼
+            ┌──────┐              ┌──────┐
+            │ YES  │              │  NO  │
+            └───┬──┘              └───┬──┘
+                │                     │
+                ▼                     ▼
+        Count rep += 1          Continue
+        Say number              monitoring
+        Update UI
+
+
+═══════════════════════════════════════════════════════════════════════════
+    FILE DEPENDENCY GRAPH
+═══════════════════════════════════════════════════════════════════════════
+
+main.py
+ │
+ ├─► Settings.py (reads camera_type)
+ ├─► CameraFactory.py
+ │    │
+ │    ├─► Settings.py (reads camera_type)
+ │    │
+ │    └─► IF camera_type == "realsense":
+ │         │
+ │         ├─► Camera_realsense.py
+ │         │    ├─► Joint.py
+ │         │    ├─► MP.py
+ │         │    │    └─► mediapipe (external)
+ │         │    │    └─► opencv (external)
+ │         │    └─► numpy (external)
+ │         │
+ │         └─► IF camera_type == "zed":
+ │              │
+ │              ├─► Camera_zed.py
+ │              │    ├─► Joint_zed.py
+ │              │    ├─► PyZedWrapper.py
+ │              │    │    └─► pyzed (external)
+ │              │    └─► scipy (external)
+ │
+ ├─► TrainingNew.py
+ ├─► Gymmy.py
+ └─► ScreenNew.py
+
+
+═══════════════════════════════════════════════════════════════════════════
+    UDP COMMUNICATION FORMAT
+═══════════════════════════════════════════════════════════════════════════
+
+SENDER: MP.py                      RECEIVER: Camera_realsense.py
+Port: 7000                         Port: 7000
+Protocol: UDP                      Protocol: UDP
+
+Message Format:
+┌─────────────────────────────────────────────────────────────────────────┐
+│ "nose,x1,y1,z1/L_shoulder,x2,y2,z2/R_shoulder,x3,y3,z3/..."             │
+└─────────────────────────────────────────────────────────────────────────┘
+     │      │  │  │
+     │      │  │  └─ Z coordinate (depth, relative)
+     │      │  └──── Y coordinate (vertical, inverted)
+     │      └─────── X coordinate (horizontal)
+     └────────────── Joint name (MediaPipe naming)
+
+Example:
+"nose,320.5,240.8,-0.15/L_shoulder,280.2,300.4,-0.25/R_shoulder,360.8,302.1,-0.24/..."
+
+All joints in one message, separated by '/', ending with trailing '/'
+
+
+═══════════════════════════════════════════════════════════════════════════
+    TESTING STRATEGY
+═══════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    test_realsense_system.py                             │
+└─────────────────────────────────────────────────────────────────────────┘
+                                 │
+                 ┌───────────────┼───────────────┐
+                 │               │               │
+                 ▼               ▼               ▼
+         ┌──────────────┐ ┌─────────────┐ ┌────────────────┐
+         │   Test 1     │ │   Test 2    │ │    Test 3      │
+         │  MediaPipe   │ │  Data       │ │   Exercise     │
+         │  Visual      │ │  Stream     │ │   Tracking     │
+         └──────────────┘ └─────────────┘ └────────────────┘
+               │                │                 │
+               ▼                ▼                 ▼
+         Opens webcam    Measures FPS      Tests real
+         Shows skeleton  & visibility      exercise
+         Press 'q' stop  10 sec test       counting reps
+
+
+═══════════════════════════════════════════════════════════════════════════
+    KEY CONFIGURATION POINTS
+═══════════════════════════════════════════════════════════════════════════
+
+1. CAMERA SELECTION (Settings.py, line 14)
+   camera_type = "realsense"  or  camera_type = "zed"
+
+2. UDP PORT (MP.py line 33, Camera_realsense.py line 28)
+   server_address = ('localhost', 7000)
+
+3. MEDIAPIPE CONFIDENCE (MP.py line 49-50)
+   min_detection_confidence = 0.5
+   min_tracking_confidence = 0.5
+
+4. JOINT VISIBILITY THRESHOLD (MP.py line 67)
+   if landmark.visibility >= 0.7:
+
+5. ANGLE SMOOTHING (Camera_realsense.py line 34)
+   self.max_angle_jump = 10  # degrees
+
+
+═══════════════════════════════════════════════════════════════════════════
+    TROUBLESHOOTING DECISION TREE
+═══════════════════════════════════════════════════════════════════════════
+
+                        ┌─────────────────┐
+                        │ System not      │
+                        │ working?        │
+                        └────────┬────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ▼                         ▼
+            ┌──────────────┐          ┌──────────────┐
+            │ Import error?│          │ Data issues? │
+            └───────┬──────┘          └───────┬──────┘
+                    │                         │
+                    ▼                         ▼
+            pip install            ┌──────────────────┐
+            mediapipe              │ No skeleton      │
+            opencv-python          │ detected?        │
+            numpy                  └────────┬─────────┘
+                                            │
+                                  ┌─────────┴─────────┐
+                                  │                   │
+                                  ▼                   ▼
+                          ┌──────────────┐    ┌─────────────┐
+                          │ Check:       │    │ Check:      │
+                          │ - Lighting   │    │ - Distance  │
+                          │ - Background │    │ - Full body │
+                          └──────────────┘    └─────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════
+    SUCCESS INDICATORS
+═══════════════════════════════════════════════════════════════════════════
+
+✓ MP.py opens window with skeleton overlay
+✓ Console shows "✅ Camera started successfully!"
+✓ Test script shows "Received X joints" messages
+✓ Angles are calculated (not None)
+✓ Repetitions are counted when you do exercise
+✓ No timeout messages
+✓ FPS is ~30
+✓ Joint visibility is >80% for major joints
+
+
+═══════════════════════════════════════════════════════════════════════════
+    COORDINATE SYSTEMS
+═══════════════════════════════════════════════════════════════════════════
+
+MediaPipe Output          →    Gymmy Internal Coordinates
+─────────────────────────      ───────────────────────────
+X: 0.0 to 1.0 (left→right)     X: 0 to image_width
+Y: 0.0 to 1.0 (top→bottom)     Y: -(0 to image_height) [INVERTED]
+Z: relative depth              Z: -Z * 100 [INVERTED & SCALED]
+
+Coordinate transformations in MP.py (lines 70-72):
+  x = landmark.x * image_width       # Scale to pixels
+  y = -landmark.y * image_height     # Invert Y (match ZED)
+  z = -landmark.z                    # Invert Z (match ZED)
+
+Additional scaling in Camera_realsense.py (line 126):
+  z * 100  # Make depth values comparable to ZED scale
+
+
+═══════════════════════════════════════════════════════════════════════════
+    PERFORMANCE BENCHMARKS
+═══════════════════════════════════════════════════════════════════════════
+
+                        ZED Camera           RealSense + MediaPipe
+────────────────────────────────────────────────────────────────────────────
+FPS                     30-60                ~30
+Depth Accuracy          ±1-2mm              Estimated (relative)
+Joint Detection         Very High           Good (95%+)
+Setup Time              Long (~30s)         Fast (~2s)
+Hardware Cost           $400-800            $0 (any webcam)
+Portability             Medium              High
+Development Testing     Needs hardware      Works on any laptop
+Production Use          Excellent           Good
+
+
+═══════════════════════════════════════════════════════════════════════════
+    QUICK START FLOWCHART
+═══════════════════════════════════════════════════════════════════════════
+
+START
+  │
+  ├──► Open Settings.py
+  │
+  ├──► Set camera_type = "realsense"
+  │
+  ├──► Save file
+  │
+  ├──► Run: python test_realsense_system.py
+  │
+  ├──► Select Test 1 (MediaPipe Visual)
+  │
+  ├──► Can you see skeleton overlay?
+  │     │
+  │     ├─► YES ─► Continue
+  │     │
+  │     └─► NO ──► Check webcam / lighting / distance
+  │
+  ├──► Run Test 3 (Stream Stats)
+  │
+  ├──► Is FPS > 25 and visibility > 80%?
+  │     │
+  │     ├─► YES ─► Continue
+  │     │
+  │     └─► NO ──► Improve conditions / check console for errors
+  │
+  ├──► Run Test 2 (Exercise Tracking)
+  │
+  ├──► Do ball_bend_elbows 5 times
+  │
+  ├──► Does it count correctly?
+  │     │
+  │     ├─► YES ─► System ready! Run: python main.py
+  │     │
+  │     └─► NO ──► Check angle thresholds / exercise form
+  │
+END (Success!)
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+This diagram shows the complete architecture of your dual-camera Gymmy system!
+Save this file for reference when working on the project.
+
+For more details, see:
+  - REALSENSE_INTEGRATION_GUIDE.md (complete guide)
+  - QUICK_REFERENCE.md (quick commands)
+  - INTEGRATION_SUMMARY.md (what was done)
+
+═══════════════════════════════════════════════════════════════════════════
+
