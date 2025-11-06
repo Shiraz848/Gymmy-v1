@@ -72,6 +72,12 @@ def __init__():
     global robot_counter
 
     global reached_max_limit
+    
+    # Patient Calibration variables
+    global patient_calibrated  # Boolean: Is patient calibrated?
+    global patient_rom  # Dictionary: Patient ROM data
+    global current_calibration_movement  # String: Current movement being measured
+    global current_calibration_progress  # String: Progress (e.g., "3/16")
 
 
 

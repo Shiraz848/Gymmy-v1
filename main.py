@@ -84,6 +84,17 @@ if __name__ == '__main__':
     s.all_rules_ok = False
     s.fps = 0
     s.change_in_trend = [False]
+    
+    # Patient Calibration
+    s.patient_calibrated = False
+    s.patient_rom = {}
+    s.current_calibration_movement = ""  # Current movement name for GUI display
+    s.current_calibration_progress = ""  # Progress string like "3/16"
+    
+    # ROM Calibration Robot Demo
+    s.rom_demo_requested = None
+    s.rom_demo_side = "right"
+    s.rom_demo_done = False
 
     # Create all components
     # Display camera info
@@ -92,7 +103,17 @@ if __name__ == '__main__':
     
     s.camera = create_camera()
     s.training = Training()
-    s.robot = Gymmy()
+    
+    # Initialize robot (optional - system works without it)
+    try:
+        print("🤖 Initializing robot (Poppy/Gymmy)...")
+        s.robot = Gymmy()
+        print("✅ Robot initialized successfully")
+    except Exception as e:
+        print(f"⚠️ Robot initialization failed: {e}")
+        print("ℹ️ System will continue WITHOUT robot demonstrations")
+        print("ℹ️ Calibration will work with text instructions only")
+        s.robot = None
 
 
     s.play_song = False
@@ -108,7 +129,13 @@ if __name__ == '__main__':
     # Start all threads
     s.camera.start()
     s.training.start()
-    s.robot.start()
+    
+    # Start robot thread only if robot was initialized
+    if s.robot is not None:
+        s.robot.start()
+        print("✅ Robot thread started")
+    else:
+        print("ℹ️ Robot thread skipped (robot not available)")
 
 
     s.screen.switch_frame(EntrancePage)

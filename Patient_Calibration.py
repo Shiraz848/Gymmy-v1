@@ -17,6 +17,21 @@ import os
 import Settings as s
 from Audio import say, get_wav_duration
 
+# Audio file mapping for calibration instructions
+# TODO: Record these audio files and place in audio_files/Hebrew/Male(Female)/
+CALIBRATION_AUDIO = {
+    'start': 'calibration_start',  # "Let's measure your range of motion"
+    'shoulder_forward': 'calibration_shoulder_forward',  # "Raise your arm forward and up"
+    'shoulder_side': 'calibration_shoulder_side',  # "Raise your arm to the side"
+    'elbow_bend': 'calibration_elbow_bend',  # "Bend your elbow"
+    'arm_across': 'calibration_arm_across',  # "Move your arm across your body"
+    'hold_position': 'calibration_hold_position',  # "Hold this position"
+    'return_rest': 'calibration_return_rest',  # "Return to rest position"
+    'good_job': 'calibration_good_job',  # "Good job"
+    'next_movement': 'calibration_next_movement',  # "Next movement"
+    'complete': 'calibration_complete',  # "Calibration complete!"
+}
+
 
 class Patient_Calibration:
     """
@@ -29,10 +44,10 @@ class Patient_Calibration:
     
     def __init__(self):
         """Initialize calibration system"""
-        self.ensure_excel_exists()
         
         # Comprehensive calibration measurements
         # Based on analysis of ALL 24 exercises
+        # MUST be defined BEFORE ensure_excel_exists() is called
         self.calibration_measurements = [
             # ==== SHOULDER FLEXION (arm forward/up) - SEATED ====
             {
@@ -210,6 +225,82 @@ class Patient_Calibration:
                 'used_in': ['notool_raising_hands_diagonally']
             },
         ]
+        
+        # Now create Excel file if needed (after calibration_measurements is defined)
+        self.ensure_excel_exists()
+        
+        # Mapping from calibration measurement names to robot demo functions
+        self.robot_demo_mapping = {
+            'R_Shoulder_Hip_Elbow': ('rom_demo_shoulder_forward_raise', 'right', 'shoulder_forward'),
+            'L_Shoulder_Hip_Elbow': ('rom_demo_shoulder_forward_raise', 'left', 'shoulder_forward'),
+            'R_Shoulder_Hip_Wrist': ('rom_demo_shoulder_side_raise', 'right', 'shoulder_side'),
+            'L_Shoulder_Hip_Wrist': ('rom_demo_shoulder_side_raise', 'left', 'shoulder_side'),
+            'R_Elbow': ('rom_demo_elbow_bend', 'right', 'elbow_bend'),
+            'L_Elbow': ('rom_demo_elbow_bend', 'left', 'elbow_bend'),
+            'R_Wrist_Shoulder_Shoulder': ('rom_demo_arm_across_body', 'right', 'arm_across'),
+            'L_Wrist_Shoulder_Shoulder': ('rom_demo_arm_across_body', 'left', 'arm_across'),
+            # Add more mappings as needed
+        }
+    
+    def play_calibration_audio(self, audio_key):
+        """Play calibration audio with fallback if file doesn't exist"""
+        try:
+            if audio_key in CALIBRATION_AUDIO:
+                say(CALIBRATION_AUDIO[audio_key])
+                return get_wav_duration(CALIBRATION_AUDIO[audio_key])
+        except:
+            # Audio file doesn't exist yet - continue silently
+            pass
+        return 0
+    
+    def request_robot_demo(self, measurement_name):
+        """Request robot to demonstrate a calibration movement (optional - works without robot too)"""
+        # Check if robot is available and running
+        robot_available = hasattr(s, 'robot') and s.robot is not None
+        
+        if not robot_available:
+            # No robot - skip demonstration, patient performs based on instructions
+            print(f"   📝 {measurement_name} - Follow the text instructions")
+            time.sleep(2)
+            return None
+        
+        if measurement_name in self.robot_demo_mapping:
+            demo_func, side, audio_key = self.robot_demo_mapping[measurement_name]
+            print(f"   🤖 Robot demonstrating {measurement_name}...")
+            
+            # Play audio instruction for this movement type
+            audio_duration = self.play_calibration_audio(audio_key)
+            
+            try:
+                # Request robot demonstration using Settings pattern
+                s.rom_demo_requested = demo_func
+                s.rom_demo_side = side
+                s.rom_demo_done = False
+                
+                # Wait for robot to finish (with timeout)
+                timeout = 10  # seconds
+                start_time = time.time()
+                while not s.rom_demo_done and (time.time() - start_time) < timeout:
+                    time.sleep(0.1)
+                
+                if not s.rom_demo_done:
+                    print(f"   ⚠️ Robot demo timeout - continuing without demo")
+                
+                # Reset flags
+                s.rom_demo_requested = None
+                s.rom_demo_done = False
+                time.sleep(1)  # Brief pause after demo
+                return audio_key
+            
+            except Exception as e:
+                print(f"   ⚠️ Robot demo error: {e} - continuing without demo")
+                time.sleep(1)
+                return None
+        else:
+            # No specific demo for this measurement, just continue
+            print(f"   📝 No robot demo for {measurement_name}, patient will perform independently")
+            time.sleep(2)
+            return None
     
     def ensure_excel_exists(self):
         """Create Excel file if it doesn't exist"""
@@ -251,6 +342,10 @@ class Patient_Calibration:
         print(f"   Measuring: {len(self.calibration_measurements)} different movements")
         print("="*70)
         
+        # Play welcome audio
+        self.play_calibration_audio('start')  # "Let's measure your range of motion"
+        time.sleep(2)
+        
         # Reset state
         s.patient_calibrated = False
         rom_data = {}
@@ -260,6 +355,10 @@ class Patient_Calibration:
             if s.stop_requested:
                 print("\n⚠️ Calibration cancelled by user")
                 return False
+            
+            # Update GUI status
+            s.current_calibration_movement = measurement['display']
+            s.current_calibration_progress = f"{idx}/{len(self.calibration_measurements)}"
             
             print(f"\n[{idx}/{len(self.calibration_measurements)}] {measurement['display']}")
             
@@ -297,6 +396,9 @@ class Patient_Calibration:
         print(f"💾 Data saved to: {self.EXCEL_FILE}")
         print("="*70)
         
+        # Play completion audio
+        self.play_calibration_audio('complete')  # "Calibration complete!"
+        
         return True
     
     def measure_rom(self, config):
@@ -306,32 +408,47 @@ class Patient_Calibration:
         """
         joints = config['joints']
         
+        # Request robot demonstration (includes audio)
+        audio_key = self.request_robot_demo(config['name'])
+        
         print(f"   📝 {config['instruction']}")
-        time.sleep(2)  # Give time to position
+        print(f"   🤖 Watch the robot, then copy the movement...")
+        print(f"   ⏳ You have 8 seconds to get into position...")
+        time.sleep(8)  # Give patient more time to read, understand, and position
         
         # Capture MAXIMUM
-        max_angle = self.capture_angle(joints, duration=4, target='max')
+        print(f"   📸 Capturing maximum angle... Hold the position!")
+        self.play_calibration_audio('hold_position')  # "Hold this position"
+        max_angle = self.capture_angle(joints, duration=6, target='max')
         
         if max_angle is None:
             return (False, None, None)
         
-        print(f"   📸 Maximum captured: {max_angle:.1f}°")
-        time.sleep(1)
+        print(f"   ✅ Maximum captured: {max_angle:.1f}°")
+        time.sleep(2)  # Brief pause
         
         # Capture MINIMUM
         print(f"   📝 {config['rest_instruction']}")
-        time.sleep(2)
+        self.play_calibration_audio('return_rest')  # "Return to rest position"
+        print(f"   ⏳ You have 8 seconds to get into position...")
+        time.sleep(8)  # Give patient time to return to rest position
         
-        min_angle = self.capture_angle(joints, duration=4, target='min')
+        print(f"   📸 Capturing minimum angle... Hold the position!")
+        self.play_calibration_audio('hold_position')  # "Hold this position"
+        min_angle = self.capture_angle(joints, duration=6, target='min')
         
         if min_angle is None:
             return (False, None, None)
         
-        print(f"   📸 Minimum captured: {min_angle:.1f}°")
+        print(f"   ✅ Minimum captured: {min_angle:.1f}°")
+        self.play_calibration_audio('good_job')  # "Good job"
         
         # Validate (max should be > min)
         if max_angle < min_angle:
             max_angle, min_angle = min_angle, max_angle
+        
+        print(f"   ⏸️  Relax for 3 seconds before next measurement...")
+        time.sleep(3)  # Give patient time to relax between measurements
         
         return (True, max_angle, min_angle)
     
@@ -475,7 +592,7 @@ def load_patient_rom_on_start(patient_id):
     Load patient's ROM when training starts
     Call this at the beginning of training
     """
-    calibration = Patient_Calibration_Complete()
+    calibration = Patient_Calibration()
     rom_data = calibration.load_from_excel(patient_id)
     
     if rom_data:
@@ -531,8 +648,8 @@ def get_adaptive_range_for_joint(joint_combo, default_min, default_max):
 
 if __name__ == "__main__":
     print("="*70)
-    print("🏥 Patient Calibration Complete - Test Mode")
+    print("🏥 Patient Calibration - Test Mode")
     print("="*70)
-    print(f"\n📊 This system measures {len(Patient_Calibration_Complete().calibration_measurements)} movements")
+    print(f"\n📊 This system measures {len(Patient_Calibration().calibration_measurements)} movements")
     print("\n✅ Module loaded successfully!")
 

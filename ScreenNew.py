@@ -29,9 +29,50 @@ from PIL import ImageSequence
 from PyZedWrapper import PyZedWrapper
 import Settings as s
 from Audio import say, get_wav_duration, ContinuousAudio
+from Patient_Calibration import Patient_Calibration
 
 
 s.exercise_name_repeated_explanation = None
+
+
+# ==================== HELPER FUNCTIONS ====================
+
+def check_if_rom_calibration_needed(patient_id):
+    """
+    Check if ROM calibration is needed for this patient
+    
+    Returns:
+        True if calibration is needed, False otherwise
+    
+    TODO: Add your logic here to check if it's the patient's first time
+    For now, checks if calibration data exists in Excel
+    """
+    try:
+        # Check if calibration file exists
+        calibration_file = "PatientROM_Calibration.xlsx"
+        if not os.path.exists(calibration_file):
+            print(f"📋 ROM Calibration file doesn't exist - calibration needed")
+            return True
+        
+        # Try to load patient's calibration data
+        calibration = Patient_Calibration()
+        rom_data = calibration.load_from_excel(patient_id)
+        
+        if rom_data is None:
+            print(f"📋 No ROM calibration found for patient {patient_id} - calibration needed")
+            return True
+        else:
+            print(f"✅ ROM calibration exists for patient {patient_id}")
+            # Load the data into settings
+            s.patient_rom = rom_data
+            s.patient_calibrated = True
+            return False
+            
+    except Exception as e:
+        print(f"⚠️ Error checking ROM calibration: {e}")
+        # If there's an error, assume calibration is needed to be safe
+        return True
+
 
 class Screen(tk.Tk):
     def __init__(self):
@@ -248,7 +289,14 @@ class ID_patient_fill_page(tk.Frame):
                             s.ex_in_training.append(df1.columns[i])
 
                     print(s.ex_in_training)
-                    s.screen.switch_frame(StartOfTraining)
+                    
+                    # AUTOMATIC ROM CALIBRATION - Only if patient doesn't have calibration data
+                    if check_if_rom_calibration_needed(user_id):
+                        print(f"🎯 Starting automatic ROM calibration for patient {user_id}")
+                        s.screen.switch_frame(ROM_CalibrationPage, auto_start=True, next_frame=StartOfTraining)
+                    else:
+                        print(f"✅ Patient {user_id} already calibrated, proceeding to training")
+                        s.screen.switch_frame(StartOfTraining)
 
 
         else:
@@ -435,7 +483,6 @@ class Choose_Action_Physio(tk.Frame):
 
     def on_click_quit(self):
         s.screen.switch_frame(ID_therapist_fill_page)
-
 
     def on_click_patient_registration(self):
         self.delete_all_labels()
@@ -4771,6 +4818,262 @@ class CalibrationScreen(tk.Frame):
         s.screen_finished_counting = False
         self.count = 0 # Reset count
         self.update_camera()  # Restart the countdown
+
+
+class ROM_CalibrationPage(tk.Frame):
+    """
+    ROM (Range of Motion) Calibration Page
+    Measures patient's range of motion for all exercises
+    
+    Parameters:
+        auto_start (bool): If True, automatically starts calibration
+        next_frame (class): Frame to switch to after calibration completes
+    """
+    def __init__(self, master, auto_start=False, next_frame=None):
+        tk.Frame.__init__(self, master)
+        
+        # Store parameters
+        self.auto_start = auto_start
+        self.next_frame = next_frame
+        
+        # Background
+        image = Image.open('Pictures//background.jpg')
+        self.photo_image = ImageTk.PhotoImage(image)
+        tk.Label(self, image=self.photo_image).pack()
+        
+        # Title
+        title_text = "ROM Calibration" if not auto_start else "Initial ROM Calibration"
+        title_label = tk.Label(self, text=title_text, 
+                               font=("Helvetica", 32, "bold"),
+                               bg='#F3FCFB', fg='#2C5F6F')
+        title_label.place(x=300, y=30)
+        
+        # Status area
+        self.status_frame = tk.Frame(self, bg='white', bd=2, relief='solid')
+        self.status_frame.place(x=150, y=100, width=724, height=350)
+        
+        initial_text = "Preparing your personalized calibration..." if auto_start else "Ready to start calibration"
+        self.status_label = tk.Label(self.status_frame, 
+                                     text=initial_text,
+                                     font=("Helvetica", 18),
+                                     bg='white', fg='black',
+                                     wraplength=680,
+                                     justify='center')
+        self.status_label.pack(pady=20)
+        
+        self.progress_label = tk.Label(self.status_frame,
+                                      text="",
+                                      font=("Helvetica", 14),
+                                      bg='white', fg='#666666')
+        self.progress_label.pack(pady=10)
+        
+        self.detail_text = tk.Text(self.status_frame, 
+                                   height=12, width=80,
+                                   font=("Courier", 10),
+                                   bg='#F5F5F5', fg='black',
+                                   wrap='word')
+        self.detail_text.pack(pady=10, padx=10)
+        
+        # Buttons
+        self.start_button = tk.Button(self, 
+                                      text="Start Calibration",
+                                      font=("Helvetica", 16, "bold"),
+                                      bg='#4CAF50', fg='white',
+                                      width=20, height=2,
+                                      command=self.start_calibration)
+        self.start_button.place(x=200, y=480)
+        
+        # Back button text depends on mode
+        back_text = "Skip Calibration" if auto_start and next_frame else "Back to Menu"
+        self.back_button = tk.Button(self,
+                                     text=back_text,
+                                     font=("Helvetica", 16, "bold"),
+                                     bg='#FF9800', fg='white',
+                                     width=20, height=2,
+                                     command=self.go_back)
+        self.back_button.place(x=550, y=480)
+        
+        # Calibration object
+        self.calibration = None
+        self.calibration_running = False
+        
+        # Auto-start if requested
+        if auto_start:
+            self.log_message("🎯 Automatic calibration starting...")
+            self.log_message("This will help personalize exercises to your abilities.")
+            self.log_message("")
+            # Start after a short delay to let the page render
+            self.after(1000, self.start_calibration)
+        
+    def start_calibration(self):
+        """Start the calibration process"""
+        if self.calibration_running:
+            self.log_message("⚠️ Calibration already running!")
+            return
+        
+        # Check if patient is logged in
+        if not hasattr(s, 'chosen_patient_ID') or s.chosen_patient_ID is None:
+            self.log_message("❌ ERROR: No patient ID set!")
+            self.log_message("Please enter a patient ID in the therapist menu or login as a patient first.")
+            self.log_message("")
+            self.log_message("TIP: You can manually set patient ID for testing:")
+            self.log_message("  1. Go to therapist menu")
+            self.log_message("  2. Click 'To Patients List'")
+            self.log_message("  3. Click on a patient")
+            self.log_message("  4. Come back here and click Start Calibration")
+            return
+        
+        # Disable start button
+        self.start_button.config(state='disabled', bg='#CCCCCC')
+        self.calibration_running = True
+        
+        # Update status
+        self.status_label.config(text=f"Calibrating Patient: {s.chosen_patient_ID}")
+        self.progress_label.config(text="Initializing...")
+        self.detail_text.delete('1.0', tk.END)
+        
+        self.log_message(f"🎯 Starting ROM Calibration for Patient {s.chosen_patient_ID}")
+        self.log_message("="*70)
+        
+        # Run calibration in a thread so GUI doesn't freeze
+        import threading
+        calibration_thread = threading.Thread(target=self.run_calibration)
+        calibration_thread.daemon = True
+        calibration_thread.start()
+        
+        # Start checking calibration status
+        self.check_calibration_status()
+    
+    def run_calibration(self):
+        """Run calibration in background thread"""
+        try:
+            # Create calibration object
+            self.calibration = Patient_Calibration()
+            
+            # Store original print function
+            import sys
+            original_stdout = sys.stdout
+            
+            # Redirect print to GUI
+            class GUIWriter:
+                def __init__(self, text_widget, parent):
+                    self.text_widget = text_widget
+                    self.parent = parent
+                
+                def write(self, text):
+                    if text.strip():  # Only log non-empty lines
+                        self.parent.log_message(text.rstrip())
+                
+                def flush(self):
+                    pass
+            
+            sys.stdout = GUIWriter(self.detail_text, self)
+            
+            # Run calibration
+            self.log_message("📊 Measuring range of motion...")
+            self.log_message(f"Total measurements: {len(self.calibration.calibration_measurements)}")
+            self.log_message("")
+            
+            success = self.calibration.run_calibration()
+            
+            # Restore stdout
+            sys.stdout = original_stdout
+            
+            if success:
+                self.log_message("")
+                self.log_message("="*70)
+                self.log_message("✅ CALIBRATION COMPLETE!")
+                self.log_message("="*70)
+                self.log_message(f"📊 Data saved to: {self.calibration.EXCEL_FILE}")
+                
+                if hasattr(s, 'patient_rom'):
+                    overall_score = s.patient_rom.get('Overall_ROM_Score', 0)
+                    self.log_message(f"📈 Overall ROM Score: {overall_score:.1f}/100")
+                
+                self.progress_label.config(text="✅ Calibration Complete!")
+                self.status_label.config(text="Calibration Successful!", fg='#4CAF50')
+                
+                # Auto-navigate to next page if specified
+                if self.next_frame:
+                    self.log_message("")
+                    self.log_message("Proceeding to training in 3 seconds...")
+                    self.after(3000, self.proceed_to_next_frame)
+            else:
+                self.log_message("")
+                self.log_message("⚠️ Calibration was cancelled or failed")
+                self.progress_label.config(text="❌ Calibration Failed")
+                self.status_label.config(text="Calibration Failed", fg='#FF5722')
+                
+        except Exception as e:
+            self.log_message(f"❌ ERROR: {str(e)}")
+            import traceback
+            self.log_message(traceback.format_exc())
+            self.progress_label.config(text="❌ Error occurred")
+            self.status_label.config(text="Error Occurred", fg='#FF5722')
+        
+        finally:
+            self.calibration_running = False
+            # Re-enable start button
+            self.start_button.after(0, lambda: self.start_button.config(state='normal', bg='#4CAF50'))
+    
+    def check_calibration_status(self):
+        """Check calibration progress and update GUI"""
+        if self.calibration_running:
+            # Update progress from Settings variables
+            if hasattr(s, 'current_calibration_progress') and s.current_calibration_progress:
+                self.progress_label.config(
+                    text=f"Progress: {s.current_calibration_progress} measurements"
+                )
+            
+            # Update current movement display
+            if hasattr(s, 'current_calibration_movement') and s.current_calibration_movement:
+                self.status_label.config(
+                    text=f"📋 {s.current_calibration_movement}",
+                    fg='#2C5F6F'
+                )
+            
+            # Check again in 500ms
+            self.after(500, self.check_calibration_status)
+    
+    def log_message(self, message):
+        """Add message to the detail text area"""
+        def _log():
+            self.detail_text.insert(tk.END, message + '\n')
+            self.detail_text.see(tk.END)  # Scroll to bottom
+        
+        # Make sure this runs in main thread
+        self.detail_text.after(0, _log)
+    
+    def proceed_to_next_frame(self):
+        """Navigate to the next frame after calibration"""
+        if self.next_frame:
+            print(f"✅ Calibration complete, proceeding to {self.next_frame.__name__}")
+            s.screen.switch_frame(self.next_frame)
+        else:
+            # Default to therapist menu
+            s.screen.switch_frame(Choose_Action_Physio)
+    
+    def go_back(self):
+        """Return to previous page or skip calibration"""
+        if self.calibration_running:
+            s.stop_requested = True
+            self.log_message("⚠️ Stopping calibration...")
+            if self.next_frame:
+                # If in auto mode, proceed to next frame after stopping
+                self.after(1000, self.proceed_to_next_frame)
+            else:
+                # Return to therapist menu
+                self.after(1000, lambda: s.screen.switch_frame(Choose_Action_Physio))
+        else:
+            if self.next_frame:
+                # Skip calibration and proceed to next frame
+                print("⚠️ Calibration skipped by user")
+                s.patient_calibrated = False
+                s.patient_rom = {}
+                self.proceed_to_next_frame()
+            else:
+                # Return to therapist menu
+                s.screen.switch_frame(Choose_Action_Physio)
 
 
 class StartExplanationPage(tk.Frame):
