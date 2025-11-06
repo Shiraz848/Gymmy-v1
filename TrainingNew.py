@@ -244,13 +244,12 @@ class Training(threading.Thread):
             s.exercises_by_order=[]
 
 
-            s.req_exercise = "calibration"
-            while not s.finished_calibration:
-                time.sleep(0.0001)
-
-                if s.stop_requested or s.finish_program:
-                    break
-
+            # Simple calibration: Do 1 rep of each exercise as warm-up
+            from Patient_Calibration_Simple import Simple_Calibration
+            print("\n🎯 Starting warm-up calibration...")
+            calibration = Simple_Calibration()
+            s.finished_calibration = calibration.run_calibration_for_training()
+            print(f"✅ Calibration finished: {s.finished_calibration}\n")
             s.req_exercise = ""
             time.sleep(get_wav_duration("end_calibration"))
 

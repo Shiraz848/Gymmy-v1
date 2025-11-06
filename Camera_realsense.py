@@ -35,6 +35,24 @@ class RealsenseNew(threading.Thread):
         # Frame tracking
         self.frame_count = 0
         self.start_time = None
+    
+    def track_calibration_ranges(self, right_angle, left_angle, right_angle2=None, left_angle2=None):
+        """Track max/min angles during calibration mode"""
+        if hasattr(s, 'calibration_mode') and s.calibration_mode:
+            if hasattr(s, 'calibration_ranges'):
+                # Track primary angles
+                s.calibration_ranges['right_max'] = max(s.calibration_ranges['right_max'], right_angle)
+                s.calibration_ranges['right_min'] = min(s.calibration_ranges['right_min'], right_angle)
+                s.calibration_ranges['left_max'] = max(s.calibration_ranges['left_max'], left_angle)
+                s.calibration_ranges['left_min'] = min(s.calibration_ranges['left_min'], left_angle)
+                
+                # Track secondary angles if provided
+                if right_angle2 is not None:
+                    s.calibration_ranges['right_max'] = max(s.calibration_ranges['right_max'], right_angle2)
+                    s.calibration_ranges['right_min'] = min(s.calibration_ranges['right_min'], right_angle2)
+                if left_angle2 is not None:
+                    s.calibration_ranges['left_max'] = max(s.calibration_ranges['left_max'], left_angle2)
+                    s.calibration_ranges['left_min'] = min(s.calibration_ranges['left_min'], left_angle2)
 
     def calc_angle_3d(self, joint1, joint2, joint3, joint_name="default"):
         """
@@ -190,6 +208,9 @@ class RealsenseNew(threading.Thread):
                                                    joints[str("R_" + joint6)], "R_2")
                     left_angle2 = self.calc_angle_3d(joints[str("L_" + joint4)], joints[str("L_" + joint5)],
                                                   joints[str("L_" + joint6)], "L_2")
+                
+                # Track ranges during calibration
+                self.track_calibration_ranges(right_angle, left_angle, right_angle2, left_angle2)
 
                 # Update UI information
                 if flag == False:

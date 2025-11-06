@@ -73,9 +73,11 @@ def __init__():
 
     global reached_max_limit
     
-    # Patient Calibration variables
+    # Patient Calibration variables (Simplified - per session)
     global patient_calibrated  # Boolean: Is patient calibrated?
-    global patient_rom  # Dictionary: Patient ROM data
+    global patient_rom  # Dictionary: Patient ROM data per exercise
+    global calibration_mode  # Boolean: Currently in calibration mode?
+    global calibration_ranges  # Dict: Current calibration min/max tracking
     global current_calibration_movement  # String: Current movement being measured
     global current_calibration_progress  # String: Progress (e.g., "3/16")
 

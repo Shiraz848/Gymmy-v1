@@ -290,13 +290,9 @@ class ID_patient_fill_page(tk.Frame):
 
                     print(s.ex_in_training)
                     
-                    # AUTOMATIC ROM CALIBRATION - Only if patient doesn't have calibration data
-                    if check_if_rom_calibration_needed(user_id):
-                        print(f"🎯 Starting automatic ROM calibration for patient {user_id}")
-                        s.screen.switch_frame(ROM_CalibrationPage, auto_start=True, next_frame=StartOfTraining)
-                    else:
-                        print(f"✅ Patient {user_id} already calibrated, proceeding to training")
-                        s.screen.switch_frame(StartOfTraining)
+                    # Calibration now happens automatically during training (patient does 1 rep of each exercise)
+                    print(f"🎯 Patient {user_id} ready for training (calibration will happen during warm-up)")
+                    s.screen.switch_frame(StartOfTraining)
 
 
         else:

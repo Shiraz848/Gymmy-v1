@@ -85,16 +85,13 @@ if __name__ == '__main__':
     s.fps = 0
     s.change_in_trend = [False]
     
-    # Patient Calibration
+    # Patient Calibration (Simplified - per session)
     s.patient_calibrated = False
     s.patient_rom = {}
+    s.calibration_mode = False  # Flag to indicate calibration in progress
+    s.calibration_ranges = {'right_max': 0, 'right_min': 180, 'left_max': 0, 'left_min': 180}
     s.current_calibration_movement = ""  # Current movement name for GUI display
     s.current_calibration_progress = ""  # Progress string like "3/16"
-    
-    # ROM Calibration Robot Demo
-    s.rom_demo_requested = None
-    s.rom_demo_side = "right"
-    s.rom_demo_done = False
 
     # Create all components
     # Display camera info

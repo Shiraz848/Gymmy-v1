@@ -180,6 +180,24 @@ class Camera(threading.Thread):
 
         # Create the dictionary with empty lists
         self.body_parts_dict = {key: [] for key in keys}
+    
+    def track_calibration_ranges(self, right_angle, left_angle, right_angle2=None, left_angle2=None):
+        """Track max/min angles during calibration mode"""
+        if hasattr(s, 'calibration_mode') and s.calibration_mode:
+            if hasattr(s, 'calibration_ranges'):
+                # Track primary angles
+                s.calibration_ranges['right_max'] = max(s.calibration_ranges['right_max'], right_angle)
+                s.calibration_ranges['right_min'] = min(s.calibration_ranges['right_min'], right_angle)
+                s.calibration_ranges['left_max'] = max(s.calibration_ranges['left_max'], left_angle)
+                s.calibration_ranges['left_min'] = min(s.calibration_ranges['left_min'], left_angle)
+                
+                # Track secondary angles if provided
+                if right_angle2 is not None:
+                    s.calibration_ranges['right_max'] = max(s.calibration_ranges['right_max'], right_angle2)
+                    s.calibration_ranges['right_min'] = min(s.calibration_ranges['right_min'], right_angle2)
+                if left_angle2 is not None:
+                    s.calibration_ranges['left_max'] = max(s.calibration_ranges['left_max'], left_angle2)
+                    s.calibration_ranges['left_min'] = min(s.calibration_ranges['left_min'], left_angle2)
 
     def calc_angle_3d(self, joint1, joint2, joint3, joint_name="default"):
         a = np.array([joint1.x, joint1.y, joint1.z], dtype=np.float32)
@@ -668,6 +686,9 @@ class Camera(threading.Thread):
                                      joints[str("R_" + joint4)], joints[str("R_" + joint5)], joints[str("L_" + joint6)],
                                      joints[str("L_" + joint4)], joints[str("L_" + joint5)], joints[str("R_" + joint6)],
                                      right_angle, left_angle, right_angle2, left_angle2]
+                        
+                        # Track ranges during calibration
+                        self.track_calibration_ranges(right_angle, left_angle, right_angle2, left_angle2)
 
                         if flag == False:
                             s.information = [[str("R_" + joint1), str("R_" + joint2), str("R_" + joint3), up_lb, up_ub],
@@ -692,8 +713,9 @@ class Camera(threading.Thread):
                                      joints[str("R_" + joint4)], joints[str("R_" + joint5)], joints[str("R_" + joint6)],
                                      joints[str("L_" + joint4)], joints[str("L_" + joint5)], joints[str("L_" + joint6)],
                                      right_angle, left_angle, right_angle2, left_angle2]
-
-
+                        
+                        # Track ranges during calibration
+                        self.track_calibration_ranges(right_angle, left_angle, right_angle2, left_angle2)
 
                         if flag == False:
                             s.information = [[str("R_" + joint1), str("R_" + joint2), str("R_" + joint3), up_lb, up_ub],
