@@ -4592,6 +4592,104 @@ class StartOfTraining(tk.Frame):
 
 
 
+class MiniWorkoutStartScreen(tk.Frame):
+    """Mini Workout announcement screen with camera feed and countdown"""
+    def __init__(self, master):
+        tk.Frame.__init__(self, master, width=1024, height=576)
+        self.pack_propagate(False)
+        
+        # Create label for camera feed
+        self.camera_label = tk.Label(self, width=1024, height=576)
+        self.camera_label.pack()
+        
+        # Load countdown overlay images (3, 2, 1)
+        self.overlay_images = {
+            3: Image.open(os.path.join(os.getcwd(), "Pictures", "3.png")).convert("RGBA"),
+            2: Image.open(os.path.join(os.getcwd(), "Pictures", "2.png")).convert("RGBA"),
+            1: Image.open(os.path.join(os.getcwd(), "Pictures", "1.png")).convert("RGBA")
+        }
+        
+        # Load "LET'S GO" image for end
+        self.lets_go_image = Image.open(os.path.join(os.getcwd(), "Pictures", "lets_go.png")).convert("RGBA")
+        
+        # Start camera update
+        self.after(10, self.update_camera)
+        
+        self.count = 0
+        self.target_size = (1024, 576)
+        self.pause_until = time.time()
+        
+        # Load gif animation
+        self.load_gif("Pictures//camera_gif.gif")
+    
+    def load_gif(self, gif_path, size=(200, 200)):
+        self.gif_frames = []
+        try:
+            gif = Image.open(gif_path)
+            for frame in ImageSequence.Iterator(gif):
+                frame = frame.convert("RGBA").resize(size, Image.LANCZOS)
+                self.gif_frames.append(frame)
+            self.current_gif_frame = 0
+        except:
+            self.gif_frames = []
+            self.current_gif_frame = 0
+    
+    def update_camera(self):
+        """Update camera feed with countdown overlays"""
+        current_time = time.time()
+        
+        # Increment count
+        if current_time >= self.pause_until:
+            self.count += 1
+        
+        # Get camera frame
+        frame = s.zed_camera.get_latest_frame()
+        
+        if frame is not None:
+            img = Image.fromarray(frame).resize(self.target_size, Image.LANCZOS)
+            overlay_image = None
+            
+            # Countdown: 3, 2, 1
+            if 10 <= self.count < 20:
+                overlay_image = self.overlay_images[3]
+            elif 20 <= self.count < 30:
+                overlay_image = self.overlay_images[2]
+            elif 30 <= self.count < 40:
+                overlay_image = self.overlay_images[1]
+            elif 40 <= self.count < 50:
+                overlay_image = self.lets_go_image
+            
+            # Overlay countdown on camera feed
+            if overlay_image:
+                x_offset = (1024 - overlay_image.width) // 2
+                y_offset = (576 - overlay_image.height) // 2
+                img.paste(overlay_image, (x_offset, y_offset), overlay_image)
+            
+            # Show GIF animation
+            if 40 < self.count < 60 and hasattr(self, "gif_frames") and self.gif_frames:
+                gif_frame = self.gif_frames[self.current_gif_frame]
+                self.current_gif_frame = (self.current_gif_frame + 1) % len(self.gif_frames)
+                
+                # Position gifs
+                left_x = 10
+                right_x = img.width - gif_frame.width - 10
+                y_offset = (img.height - gif_frame.height) - 20
+                
+                img.paste(gif_frame, (left_x, 20), gif_frame)
+                img.paste(gif_frame, (right_x, y_offset), gif_frame)
+            
+            # Update display
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.camera_label.imgtk = imgtk
+            self.camera_label.configure(image=imgtk)
+        
+        # Signal completion
+        if self.count >= 50:
+            s.mini_workout_screen_done = True
+        else:
+            self.after(10, self.update_camera)
+
+
 class CalibrationScreen(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master, width=1024, height=576)  # Set frame size

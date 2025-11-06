@@ -87,6 +87,7 @@ if __name__ == '__main__':
     
     # Mini workout
     s.mini_workout_mode = False
+    s.mini_workout_screen_done = False
 
     # Create all components
     # Display camera info

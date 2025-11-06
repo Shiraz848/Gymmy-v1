@@ -75,3 +75,4 @@ def __init__():
     
     # Mini workout variables
     global mini_workout_mode  # Boolean: Currently in mini workout warm-up?
+    global mini_workout_screen_done  # Boolean: Announcement screen finished?

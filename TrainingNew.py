@@ -12,7 +12,7 @@ from Camera_zed import Camera
 from Gymmy import Gymmy
 from ScreenNew import Screen, FullScreenApp, Ball, Rubber_Band, Stick, NoTool, StartOfTraining, GoodbyePage, \
     EffortScale, EntrancePage, ExplanationPage, ExercisePage, Repeat_training_or_not, \
-    Number_of_good_repetitions_page, ClappingPage, Weights, CalibrationScreen
+    Number_of_good_repetitions_page, ClappingPage, Weights, CalibrationScreen, MiniWorkoutStartScreen
 import Settings as s
 import Excel
 import random
@@ -310,7 +310,19 @@ class Training(threading.Thread):
             
             # Mini workout (1 rep of each exercise)
             if not s.stop_requested and not s.finish_program:
-                self.run_mini_workout()
+                # Show announcement screen with countdown
+                s.mini_workout_screen_done = False
+                s.screen.switch_frame(MiniWorkoutStartScreen)
+                
+                # Wait for countdown to finish
+                while not s.mini_workout_screen_done:
+                    time.sleep(0.01)
+                    if s.stop_requested or s.finish_program:
+                        break
+                
+                # Now run mini workout
+                if not s.stop_requested and not s.finish_program:
+                    self.run_mini_workout()
 
             s.general_sayings = self.get_motivation_file_names()
 
