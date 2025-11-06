@@ -72,3 +72,6 @@ def __init__():
     global robot_counter
 
     global reached_max_limit
+    
+    # Mini workout variables
+    global mini_workout_mode  # Boolean: Currently in mini workout warm-up?

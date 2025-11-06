@@ -24,6 +24,61 @@ from datetime import datetime
 class Training(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
+    
+    def run_mini_workout(self):
+        """
+        Mini Workout: Patient does 1 rep of each exercise as warm-up
+        """
+        print("\n" + "="*70)
+        print("🎯 MINI WORKOUT - Warm-up")
+        print(f"   Exercises: {len(s.ex_in_training)}")
+        print("="*70 + "\n")
+        
+        # Save original rep count
+        original_rep = s.rep
+        
+        # Set to mini workout mode
+        s.mini_workout_mode = True
+        s.rep = 1  # Only 1 rep per exercise
+        
+        # Do 1 rep of each exercise
+        for idx, exercise in enumerate(s.ex_in_training, 1):
+            if s.stop_requested or s.finish_program:
+                break
+            
+            print(f"[{idx}/{len(s.ex_in_training)}] {exercise}")
+            
+            # Set exercise and trigger it
+            s.req_exercise = exercise
+            s.patient_repetitions_counting_in_exercise = 0
+            s.gymmy_done = False
+            s.camera_done = False
+            
+            # Show exercise page (video, robot, audio)
+            self.which_exercise_page()
+            
+            # Wait for 1 rep (max 10 seconds)
+            timeout = 10
+            start = time.time()
+            while s.patient_repetitions_counting_in_exercise < 1:
+                if time.time() - start > timeout:
+                    print(f"   ⏱️ Timeout - skipping")
+                    break
+                if s.stop_requested or s.finish_program:
+                    break
+                time.sleep(0.1)
+            
+            # Clean up
+            s.req_exercise = ""
+            time.sleep(1)
+        
+        # Restore original settings
+        s.mini_workout_mode = False
+        s.rep = original_rep
+        
+        print("\n" + "="*70)
+        print("✅ WARM-UP COMPLETE!")
+        print("="*70 + "\n")
 
     def run(self):
 
@@ -244,15 +299,18 @@ class Training(threading.Thread):
             s.exercises_by_order=[]
 
 
+            # Initial calibration (arms to sides)
             s.req_exercise = "calibration"
             while not s.finished_calibration:
                 time.sleep(0.0001)
-
                 if s.stop_requested or s.finish_program:
                     break
-
             s.req_exercise = ""
             time.sleep(get_wav_duration("end_calibration"))
+            
+            # Mini workout (1 rep of each exercise)
+            if not s.stop_requested and not s.finish_program:
+                self.run_mini_workout()
 
             s.general_sayings = self.get_motivation_file_names()
 

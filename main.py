@@ -84,6 +84,9 @@ if __name__ == '__main__':
     s.all_rules_ok = False
     s.fps = 0
     s.change_in_trend = [False]
+    
+    # Mini workout
+    s.mini_workout_mode = False
 
     # Create all components
     # Display camera info
