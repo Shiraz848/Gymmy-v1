@@ -53,6 +53,7 @@ class Training(threading.Thread):
             s.patient_repetitions_counting_in_exercise = 0
             s.gymmy_done = False
             s.camera_done = False
+            s.direction = None  # Reset direction for each exercise
             
             # Show exercise page (video, robot, audio)
             self.which_exercise_page()
