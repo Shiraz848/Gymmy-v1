@@ -1,5 +1,5 @@
 # Camera configuration - Change this to switch between cameras
-camera_type = "realsense"  # Options: "zed" or "realsense"
+camera_type = "zed"  # Options: "zed" or "realsense"
 
 def __init__():
 
@@ -80,6 +80,7 @@ def __init__():
     global calibration_ranges  # Dict: Current calibration min/max tracking
     global current_calibration_movement  # String: Current movement being measured
     global current_calibration_progress  # String: Progress (e.g., "3/16")
+    global mini_workout_mode  # Boolean: In mini workout warm-up phase?
 
 
 

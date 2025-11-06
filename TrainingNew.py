@@ -24,6 +24,104 @@ from datetime import datetime
 class Training(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
+    
+    def run_mini_workout(self):
+        """
+        Mini Workout: Warm-up phase before training
+        - Patient does 1 rep of each exercise
+        - ROM ranges are tracked and saved
+        - Uses existing videos, robot demos, audio
+        """
+        from Patient_Calibration_Simple import Simple_Calibration
+        
+        print("\n" + "="*70)
+        print("🎯 MINI WORKOUT - Warm-up Phase")
+        print(f"   Patient: {s.chosen_patient_ID}")
+        print(f"   Exercises: {len(s.ex_in_training)}")
+        print("="*70)
+        print("\n📋 You will do ONE repetition of each exercise.")
+        print("   This helps us personalize your workout!\n")
+        
+        # Save original settings
+        original_rep_count = s.rep
+        
+        # Set mini workout mode
+        s.mini_workout_mode = True
+        s.calibration_mode = True
+        s.rep = 1  # Only 1 rep per exercise
+        s.patient_rom = {}
+        
+        # Initialize calibration
+        calibration = Simple_Calibration()
+        
+        # Run through each exercise once
+        for idx, exercise in enumerate(s.ex_in_training, 1):
+            if s.stop_requested or s.finish_program:
+                print("\n⚠️ Mini workout cancelled")
+                break
+            
+            print(f"\n[{idx}/{len(s.ex_in_training)}] Mini Workout: {exercise}")
+            s.current_calibration_movement = f"{exercise} (warm-up)"
+            s.current_calibration_progress = f"{idx}/{len(s.ex_in_training)}"
+            
+            # Reset ranges for this exercise
+            s.calibration_ranges = {'right_max': 0, 'right_min': 180,
+                                   'left_max': 0, 'left_min': 180}
+            
+            # Set up exercise
+            s.req_exercise = exercise
+            s.patient_repetitions_counting_in_exercise = 0
+            s.gymmy_done = False
+            s.camera_done = False
+            
+            # Trigger exercise page (this handles video, robot demo, audio automatically)
+            self.which_exercise_page()
+            
+            # Wait for 1 rep to complete (or timeout)
+            timeout = 60  # 60 seconds per exercise
+            start_time = time.time()
+            
+            while s.patient_repetitions_counting_in_exercise < 1:
+                if time.time() - start_time > timeout:
+                    print(f"   ⏱️ Timeout for {exercise}")
+                    break
+                if s.stop_requested or s.finish_program:
+                    break
+                time.sleep(0.1)
+            
+            # Store ranges for this exercise
+            if s.patient_repetitions_counting_in_exercise >= 1:
+                s.patient_rom[exercise] = {
+                    'right_max': s.calibration_ranges['right_max'],
+                    'right_min': s.calibration_ranges['right_min'],
+                    'left_max': s.calibration_ranges['left_max'],
+                    'left_min': s.calibration_ranges['left_min']
+                }
+                print(f"   ✅ Recorded ranges for {exercise}")
+            else:
+                print(f"   ⚠️ Skipped {exercise} (no rep completed)")
+            
+            # Clean up
+            s.req_exercise = ""
+            time.sleep(1)  # Brief pause between exercises
+        
+        # Save all data to Excel
+        if s.patient_rom:
+            calibration.save_to_excel(s.chosen_patient_ID, s.patient_rom)
+            print(f"\n💾 Mini workout data saved to Excel")
+        
+        # Restore settings
+        s.mini_workout_mode = False
+        s.calibration_mode = False
+        s.rep = original_rep_count
+        s.patient_calibrated = True
+        
+        print("\n" + "="*70)
+        print("✅ MINI WORKOUT COMPLETE!")
+        print("   Starting regular training...")
+        print("="*70 + "\n")
+        
+        return True
 
     def run(self):
 
@@ -243,15 +341,19 @@ class Training(threading.Thread):
 
             s.exercises_by_order=[]
 
-
-            # Simple calibration: Do 1 rep of each exercise as warm-up
-            from Patient_Calibration_Simple import Simple_Calibration
-            print("\n🎯 Starting warm-up calibration...")
-            calibration = Simple_Calibration()
-            s.finished_calibration = calibration.run_calibration_for_training()
-            print(f"✅ Calibration finished: {s.finished_calibration}\n")
+            # STEP 1: Initial calibration (arms to sides - 5 seconds)
+            s.req_exercise = "calibration"
+            while not s.finished_calibration:
+                time.sleep(0.0001)
+                if s.stop_requested or s.finish_program:
+                    break
             s.req_exercise = ""
             time.sleep(get_wav_duration("end_calibration"))
+
+            # STEP 2: Mini Workout (1 rep of each exercise with ROM tracking)
+            if not s.stop_requested and not s.finish_program:
+                self.run_mini_workout()
+                time.sleep(2)  # Brief pause before regular training
 
             s.general_sayings = self.get_motivation_file_names()
 

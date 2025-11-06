@@ -92,6 +92,7 @@ if __name__ == '__main__':
     s.calibration_ranges = {'right_max': 0, 'right_min': 180, 'left_max': 0, 'left_min': 180}
     s.current_calibration_movement = ""  # Current movement name for GUI display
     s.current_calibration_progress = ""  # Progress string like "3/16"
+    s.mini_workout_mode = False  # Flag for mini workout warm-up phase
 
     # Create all components
     # Display camera info
