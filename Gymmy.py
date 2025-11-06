@@ -14,8 +14,8 @@ class Gymmy(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
-        self.gymmy = PoppyTorso(camera="dummy", port= "COM4")  # for real robot
-        # self.gymmy = PoppyTorso(simulator='vrep')  # for simulator
+        #self.gymmy = PoppyTorso(camera="dummy", port= "COM4")  # for real robot
+        self.gymmy = PoppyTorso(simulator='vrep')  # for simulator
         print("ROBOT INITIALIZATION")
         #self.gymmy.abs_z.goto_position(0, 1, wait=True)
 
@@ -50,21 +50,7 @@ class Gymmy(threading.Thread):
 
             while not s.finish_workout:
                 time.sleep(0.00001)  # Prevents the MP to stuck
-                
-                # Check for ROM calibration demo requests
-                if hasattr(s, 'rom_demo_requested') and s.rom_demo_requested:
-                    demo_func = s.rom_demo_requested
-                    side = s.rom_demo_side if hasattr(s, 'rom_demo_side') else "right"
-                    
-                    print(f"ROBOT: ROM Demo {demo_func} ({side}) start")
-                    # Call the demo function
-                    getattr(self, demo_func)(side)
-                    print(f"ROBOT: ROM Demo {demo_func} ({side}) done")
-                    
-                    s.rom_demo_done = True
-                    time.sleep(0.1)
-                
-                elif s.req_exercise != "" and not s.req_exercise=="hello_waving":
+                if s.req_exercise != "" and not s.req_exercise=="hello_waving":
                     ex = s.req_exercise
 
                     print("ROBOT: Exercise ", ex, " start")
@@ -215,164 +201,6 @@ class Gymmy(threading.Thread):
 
         self.gymmy.l_shoulder_x.goto_position(10, 1, wait=False)
         self.gymmy.r_shoulder_x.goto_position(-10, 1, wait=True)
-    
-    # ==================== ROM CALIBRATION DEMONSTRATIONS ====================
-    
-    def rom_demo_shoulder_forward_raise(self, side="right"):
-        """Demonstrate shoulder forward raise for ROM calibration"""
-        if side == "right":
-            # Start from rest position
-            self.gymmy.r_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.r_shoulder_x.goto_position(-10, 1, wait=True)
-            self.gymmy.r_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise right arm forward and UP as high as possible (more visible)
-            self.gymmy.r_shoulder_y.goto_position(-100, 3, wait=True)
-            time.sleep(2)
-            
-            # Lower arm slowly
-            self.gymmy.r_shoulder_y.goto_position(0, 3, wait=True)
-            time.sleep(1)
-        else:
-            # Start from rest position
-            self.gymmy.l_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.l_shoulder_x.goto_position(10, 1, wait=True)
-            self.gymmy.l_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise left arm forward and UP as high as possible (more visible)
-            self.gymmy.l_shoulder_y.goto_position(-100, 3, wait=True)
-            time.sleep(2)
-            
-            # Lower arm slowly
-            self.gymmy.l_shoulder_y.goto_position(0, 3, wait=True)
-            time.sleep(1)
-    
-    def rom_demo_shoulder_side_raise(self, side="right"):
-        """Demonstrate shoulder abduction (side raise) for ROM calibration"""
-        if side == "right":
-            # Start from rest position
-            self.gymmy.r_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.r_shoulder_x.goto_position(-10, 1, wait=True)
-            self.gymmy.r_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise right arm to the SIDE as high as possible (more visible)
-            self.gymmy.r_shoulder_x.goto_position(-100, 3, wait=True)
-            time.sleep(2)
-            
-            # Lower arm slowly
-            self.gymmy.r_shoulder_x.goto_position(-10, 3, wait=True)
-            time.sleep(1)
-        else:
-            # Start from rest position
-            self.gymmy.l_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.l_shoulder_x.goto_position(10, 1, wait=True)
-            self.gymmy.l_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise left arm to the SIDE as high as possible (more visible)
-            self.gymmy.l_shoulder_x.goto_position(100, 3, wait=True)
-            time.sleep(2)
-            
-            # Lower arm slowly
-            self.gymmy.l_shoulder_x.goto_position(10, 3, wait=True)
-            time.sleep(1)
-    
-    def rom_demo_elbow_bend(self, side="right"):
-        """Demonstrate elbow flexion for ROM calibration"""
-        if side == "right":
-            # Start from rest position
-            self.gymmy.r_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.r_shoulder_x.goto_position(-10, 1, wait=True)
-            self.gymmy.r_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Position arm forward for better visibility
-            self.gymmy.r_shoulder_y.goto_position(-60, 2, wait=True)
-            time.sleep(1)
-            
-            # Bend elbow FULLY (bring hand to shoulder)
-            self.gymmy.r_elbow_y.goto_position(-140, 3, wait=True)
-            time.sleep(2)
-            
-            # Straighten elbow slowly
-            self.gymmy.r_elbow_y.goto_position(0, 3, wait=True)
-            time.sleep(1)
-            
-            # Return arm to rest
-            self.gymmy.r_shoulder_y.goto_position(0, 2, wait=True)
-            time.sleep(1)
-        else:
-            # Start from rest position
-            self.gymmy.l_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.l_shoulder_x.goto_position(10, 1, wait=True)
-            self.gymmy.l_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Position arm forward for better visibility
-            self.gymmy.l_shoulder_y.goto_position(-60, 2, wait=True)
-            time.sleep(1)
-            
-            # Bend elbow FULLY (bring hand to shoulder)
-            self.gymmy.l_elbow_y.goto_position(-140, 3, wait=True)
-            time.sleep(2)
-            
-            # Straighten elbow slowly
-            self.gymmy.l_elbow_y.goto_position(0, 3, wait=True)
-            time.sleep(1)
-            
-            # Return arm to rest
-            self.gymmy.l_shoulder_y.goto_position(0, 2, wait=True)
-            time.sleep(1)
-    
-    def rom_demo_arm_across_body(self, side="right"):
-        """Demonstrate arm across body for ROM calibration"""
-        if side == "right":
-            # Start from rest position
-            self.gymmy.r_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.r_shoulder_x.goto_position(-10, 1, wait=True)
-            self.gymmy.r_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise arm to side first for better visibility
-            self.gymmy.r_shoulder_x.goto_position(-90, 2, wait=True)
-            time.sleep(1)
-            
-            # Move arm ACROSS body as far as possible
-            self.gymmy.r_arm_z.goto_position(90, 3, wait=True)
-            time.sleep(2)
-            
-            # Return to side slowly
-            self.gymmy.r_arm_z.goto_position(0, 3, wait=True)
-            time.sleep(1)
-            
-            # Lower arm to rest
-            self.gymmy.r_shoulder_x.goto_position(-10, 2, wait=True)
-            time.sleep(1)
-        else:
-            # Start from rest position
-            self.gymmy.l_shoulder_y.goto_position(0, 1, wait=True)
-            self.gymmy.l_shoulder_x.goto_position(10, 1, wait=True)
-            self.gymmy.l_elbow_y.goto_position(0, 1, wait=True)
-            time.sleep(1)
-            
-            # Raise arm to side first for better visibility
-            self.gymmy.l_shoulder_x.goto_position(90, 2, wait=True)
-            time.sleep(1)
-            
-            # Move arm ACROSS body as far as possible
-            self.gymmy.l_arm_z.goto_position(-90, 3, wait=True)
-            time.sleep(2)
-            
-            # Return to side slowly
-            self.gymmy.l_arm_z.goto_position(0, 3, wait=True)
-            time.sleep(1)
-            
-            # Lower arm to rest
-            self.gymmy.l_shoulder_x.goto_position(10, 2, wait=True)
-            time.sleep(1)
 
     # EX1
     def ball_bend_elbows(self, rate):
