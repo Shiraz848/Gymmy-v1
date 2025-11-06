@@ -136,12 +136,17 @@ def say(str_to_say, is_explanation=False, is_effort=False, is_popping_screen= Fa
 
 
 def get_wav_duration(str_to_say):
-    str_with_path = s.audio_path + str_to_say + '.wav'
-    with wave.open(str_with_path, 'rb') as wav_file:
-        num_frames = wav_file.getnframes()
-        frame_rate = wav_file.getframerate()
-        duration = num_frames / float(frame_rate)
-        return round(duration, 3)
+    try:
+        str_with_path = s.audio_path + str_to_say + '.wav'
+        with wave.open(str_with_path, 'rb') as wav_file:
+            num_frames = wav_file.getnframes()
+            frame_rate = wav_file.getframerate()
+            duration = num_frames / float(frame_rate)
+            return round(duration, 3)
+    except (FileNotFoundError, wave.Error) as e:
+        # Return default duration if audio file doesn't exist
+        print(f"⚠️ Audio file not found: {str_to_say}.wav - using default duration")
+        return 2.0  # Default 2 seconds
 
 
 if __name__ == '__main__':

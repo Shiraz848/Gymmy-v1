@@ -12,7 +12,8 @@ from Camera_zed import Camera
 from Gymmy import Gymmy
 from ScreenNew import Screen, FullScreenApp, Ball, Rubber_Band, Stick, NoTool, StartOfTraining, GoodbyePage, \
     EffortScale, EntrancePage, ExplanationPage, ExercisePage, Repeat_training_or_not, \
-    Number_of_good_repetitions_page, ClappingPage, Weights, CalibrationScreen, MiniWorkoutStartScreen
+    Number_of_good_repetitions_page, ClappingPage, Weights, CalibrationScreen, MiniWorkoutStartScreen, \
+    MiniWorkoutExerciseScreen
 import Settings as s
 import Excel
 import random
@@ -28,6 +29,7 @@ class Training(threading.Thread):
     def run_mini_workout(self):
         """
         Mini Workout: Patient does 1 rep of each exercise as warm-up
+        Shows simple camera feed with exercise info (like calibration screen)
         """
         print("\n" + "="*70)
         print("🎯 MINI WORKOUT - Warm-up")
@@ -55,11 +57,16 @@ class Training(threading.Thread):
             s.camera_done = False
             s.direction = None  # Reset direction for each exercise
             
-            # Show exercise page (video, robot, audio)
-            self.which_exercise_page()
+            # Show simple exercise screen (camera feed + exercise info)
+            s.screen.switch_frame(
+                MiniWorkoutExerciseScreen,
+                exercise_name=exercise.replace("_", " ").title(),
+                exercise_num=idx,
+                total_exercises=len(s.ex_in_training)
+            )
             
-            # Wait for 1 rep (max 10 seconds)
-            timeout = 10
+            # Wait for 1 rep (max 20 seconds to allow robot demo + patient movement)
+            timeout = 20
             start = time.time()
             while s.patient_repetitions_counting_in_exercise < 1:
                 if time.time() - start > timeout:
@@ -71,6 +78,7 @@ class Training(threading.Thread):
             
             # Clean up
             s.req_exercise = ""
+            print(f"   ✅ Completed (Reps: {s.patient_repetitions_counting_in_exercise})")
             time.sleep(1)
         
         # Restore original settings

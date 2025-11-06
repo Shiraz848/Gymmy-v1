@@ -4690,6 +4690,85 @@ class MiniWorkoutStartScreen(tk.Frame):
             self.after(10, self.update_camera)
 
 
+class MiniWorkoutExerciseScreen(tk.Frame):
+    """Mini Workout exercise screen - shows camera feed with exercise info"""
+    def __init__(self, master, exercise_name, exercise_num, total_exercises):
+        tk.Frame.__init__(self, master, width=1024, height=576)
+        self.pack_propagate(False)
+        
+        self.exercise_name = exercise_name
+        self.exercise_num = exercise_num
+        self.total_exercises = total_exercises
+        
+        # Create label for camera feed
+        self.camera_label = tk.Label(self, width=1024, height=576)
+        self.camera_label.pack()
+        
+        self.target_size = (1024, 576)
+        self.count = 0
+        
+        # Start camera update
+        self.after(10, self.update_camera)
+    
+    def update_camera(self):
+        """Update camera feed with exercise info overlay"""
+        # Get camera frame
+        frame = s.zed_camera.get_latest_frame()
+        
+        if frame is not None:
+            img = Image.fromarray(frame).resize(self.target_size, Image.LANCZOS)
+            
+            # Create a semi-transparent overlay for text
+            draw = ImageDraw.Draw(img)
+            
+            # Exercise info at top
+            exercise_text = f"Warm-up {self.exercise_num}/{self.total_exercises}: {self.exercise_name}"
+            
+            # Draw black background rectangle for text
+            text_bbox = draw.textbbox((0, 0), exercise_text, font=None)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            
+            padding = 20
+            rect_x1 = (1024 - text_width) // 2 - padding
+            rect_y1 = 20
+            rect_x2 = (1024 + text_width) // 2 + padding
+            rect_y2 = 20 + text_height + padding * 2
+            
+            # Semi-transparent black background
+            draw.rectangle([rect_x1, rect_y1, rect_x2, rect_y2], fill=(0, 0, 0, 180))
+            
+            # White text centered at top
+            text_x = (1024 - text_width) // 2
+            text_y = 30
+            draw.text((text_x, text_y), exercise_text, fill=(255, 255, 255), font=None)
+            
+            # Show rep counter if patient has done any reps
+            if s.patient_repetitions_counting_in_exercise > 0:
+                rep_text = f"Rep: {s.patient_repetitions_counting_in_exercise}/1"
+                rep_bbox = draw.textbbox((0, 0), rep_text, font=None)
+                rep_width = rep_bbox[2] - rep_bbox[0]
+                rep_height = rep_bbox[3] - rep_bbox[1]
+                
+                # Bottom center
+                rep_x = (1024 - rep_width) // 2
+                rep_y = 576 - rep_height - 40
+                
+                # Semi-transparent black background for rep counter
+                draw.rectangle([rep_x - padding, rep_y - 10, rep_x + rep_width + padding, rep_y + rep_height + 10], 
+                             fill=(0, 0, 0, 180))
+                draw.text((rep_x, rep_y), rep_text, fill=(0, 255, 0), font=None)
+            
+            # Update display
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.camera_label.imgtk = imgtk
+            self.camera_label.configure(image=imgtk)
+        
+        # Continue updating if exercise not done
+        if s.patient_repetitions_counting_in_exercise < 1 and not s.stop_requested and not s.finish_program:
+            self.after(10, self.update_camera)
+
+
 class CalibrationScreen(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master, width=1024, height=576)  # Set frame size
